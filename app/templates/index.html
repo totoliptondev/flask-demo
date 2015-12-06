@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<title>Hello, World!</title>
+		<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
+		<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap-theme.min.css">
+		<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
+
+        <style>
+            .plotdiv {margin:0px}
+        </style>
+        {% if HTTPstatusCode=='OK' %}
+            {{plot.resources|indent(4)|safe}}
+            {{plot.script|indent(4)|safe}}
+        {% endif %}
+	</head>
+	<body>
+		<div>
+			<h1>Hello, World!, {{stock_symbol}}</h1>
+			<form action="" method="post" name="login">
+            <p>
+            {{ form.openid(size=80) }} {% for error in form.openid.errors %} [{{ error }}] {% endfor %}
+            </p>
+			</form>
+            {% if form.openid.data %}
+            <h1> {{form.openid.data}} </h1>
+            <h1> {{jsonURL}} </h1>
+            <h1> {{HTTPstatusCode}} </h1>
+            <h1> {{stockdata}} </h1>
+            {% endif %}
+            {% if HTTPstatusCode=='OK' %}
+                {{plot.div|indent(4)|safe}}
+            {% endif %}
+		</div>
+	</body>
+</html>
