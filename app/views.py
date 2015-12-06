@@ -1,15 +1,15 @@
 
 from flask import render_template, flash, redirect, url_for
 import requests
+import numpy as np
 import pandas as pd
 from app import app
-from .forms import LoginForm
+from .forms import LoginForm, TypeForm, RangeForm
 import datetime
 
 from bokeh.embed import components
-from bokeh.plotting import figure
+from bokeh.plotting import figure, show, output_file
 from bokeh.resources import INLINE
-from bokeh.templates import JS_RESOURCES
 from bokeh.util.string import encode_utf8
 
 @app.route('/')
@@ -20,65 +20,80 @@ def main():
 @app.route('/index', methods=['GET', 'POST'])
 def index():
     form = LoginForm()
+    typeform = TypeForm()
+    rangeform = RangeForm()
     stockcode = form.openid.data
-    stockperiod = "1M"
-    if  stockcode and stockcode.strip():
+    stockperiod = "6M"
+    colName = "Adj. Close"
+
+    if not ( stockcode and stockcode.strip() ):
+        stockcode = "GOOG"
+
+    if rangeform.date_type.data:
+        stockperiod = rangeform.date_type.data
+
+
     #request data from QuanDL
-        baseURL='https://www.quandl.com/api/v1/datasets/WIKI/'
-        periodURL={'1M':'?trim_start=' + (datetime.datetime.now() - datetime.timedelta(days=30)).strftime('%Y-%m-%d'),
+    api_key = "TkW9xrpVCzTLCMwZDGK9"
+    baseURL='https://www.quandl.com/api/v1/datasets/WIKI/'
+    periodURL={'1M':'?trim_start=' + (datetime.datetime.now() - datetime.timedelta(days=30)).strftime('%Y-%m-%d'),
             '6M':'?trim_start=' + (datetime.datetime.now() - datetime.timedelta(days=183)).strftime('%Y-%m-%d'),
             '1Y':'?trim_start=' + (datetime.datetime.now() - datetime.timedelta(days=365)).strftime('%Y-%m-%d'),
             'All':'',
             'None':''}
-        jsonURL=baseURL + stockcode + '.json' + periodURL[stockperiod]
-        jsonRespond = requests.get(jsonURL)
-        HTTPstatusCode=jsonRespond.status_code
-            
-        print '[URL]      ' + jsonURL
-        print '[HTTP]     ' + str(HTTPstatusCode)
-        print '[Stockcode]' + stockcode
-        print '[Period]   ' + stockperiod
 
-
-
-
+    if not periodURL[stockperiod]:
+        jsonURL = baseURL + stockcode + '.json?api_key=' + api_key
     else:
-        jsonURL = None
-        HTTPstatusCode = None
+        jsonURL=baseURL + stockcode + '.json' + periodURL[stockperiod] + '&api_key=' + api_key
+    jsonRespond = requests.get(jsonURL)
+    HTTPstatusCode=jsonRespond.status_code
+
+    print jsonURL
+            
 
     # If http status is ok.
     if HTTPstatusCode == 200:
         jheader = (jsonRespond.json())['column_names']
         jdata = (jsonRespond.json())['data']
-
+        stock_full_name = (jsonRespond.json())['name'].split(',')[0]
         stockdata = pd.DataFrame(jdata, columns=jheader)
-#        print stockdata.head()
+        stockdata["Date"] = pd.to_datetime(stockdata["Date"])
 
-        mids = (stockdata.Open + stockdata.Close)/2
-        spans = abs(stockdata.Close-stockdata.Open)
-        #To check the up/down of the day to determin the bar color
-        inc = stockdata.Close > stockdata.Open
-        dec = stockdata.Open > stockdata.Close
+        print jsonURL
+        print HTTPstatusCode
+        print stockcode
+        print stockperiod
+        print typeform.stock_type.data, colName
 
-        fig = figure(title=None, plot_width=600, plot_height=480,x_axis_type="datetime", toolbar_location="below", tools = "crosshair, pan,wheel_zoom,box_zoom,reset,resize")
+        if typeform.stock_type.data != u'None':
+            colName = typeform.stock_type.data
 
-        fig.segment(stockdata.Date, stockdata.High, stockdata.Date, stockdata.Low, color="black")
-        fig.rect(stockdata.Date[inc], mids[inc], w, spans[inc], fill_color="#D5E1DD", line_color="black")
-        fig.rect(stockdata.Date[dec], mids[dec], w, spans[dec], fill_color="#F2583E", line_color="black")
+        output_file(stockcode + ".html", title=stockcode + " example")
+        fig = figure(title=stock_full_name + ", "+ colName, 
+                plot_width=600, plot_height=480,x_axis_type="datetime", 
+                toolbar_location="below", 
+                tools = "pan,wheel_zoom,box_zoom,reset,resize")
+        fig.line(np.array(stockdata.Date), np.array(stockdata[colName]))
 
-        plot_resources = JS_RESOURCES.render(
-                                                                                            js_raw=INLINE.js_raw,
-            css_raw=INLINE.css_raw,
-            js_files=INLINE.js_files,
-            css_files=INLINE.css_files,
-            )
+        js_resources = INLINE.js_raw
+        css_resources = INLINE.css_raw
 
-        script, div = components(fig, INLINE)
+        script, div = components(fig)
+
         return render_template('index.html', form = form, 
-                stock = {'id':form.openid.data}, 
-                jsonURL = jsonURL, HTTPstatusCode = 'OK', 
-                plot = {'script':script, 'div':div, 'resources':plot_resources})
+            typeform = typeform,
+            rangeform = rangeform,
+            stock = {'id':form.openid.data}, 
+            jsonURL = jsonURL, HTTPstatusCode = 'OK',
+            plot = {'script':script, 'div':div, 
+            'js_resources':js_resources, 'css_resources':css_resources})
     else:
-        jdata = '' 
-        return render_template('index.html', form = form, stock = {'id':form.openid.data}, jsonURL = jsonURL, HTTPstatusCode = 'code not found', stockdata = jdata)
+
+        return render_template('index.html', form = form, 
+            typeform = typeform,
+            rangeform = rangeform,
+            stock = {'id':form.openid.data}, 
+            plot = {'script':"", 'div':"Stock Symbol not Found, please try a different symbol.", 
+            'js_resources':None, 'css_resources':None})
 
