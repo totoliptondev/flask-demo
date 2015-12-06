@@ -52,7 +52,7 @@ def index():
         jdata = (jsonRespond.json())['data']
 
         stockdata = pd.DataFrame(jdata, columns=jheader)
-        print stockdata.head()
+#        print stockdata.head()
 
         mids = (stockdata.Open + stockdata.Close)/2
         spans = abs(stockdata.Close-stockdata.Open)
